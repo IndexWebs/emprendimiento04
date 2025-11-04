@@ -33,7 +33,7 @@
                     
                     <!-- Productos -->
                     <div class="space-y-4 mb-6">
-                        <div v-for="item in pedido.productos" :key="item.uid" class="flex items-center justify-between text-sm">
+                        <div v-for="(item, index) in pedido.productos" :key="item.id || index" class="flex items-center justify-between text-sm">
                             <div class="flex items-center">
                                 <img :src="item.image" :alt="item.name" class="w-16 h-16 object-cover rounded-lg mr-4">
                                 <div class="text-left">
@@ -152,64 +152,76 @@ export default {
         }
     },
     async mounted() {
-        // Detectar si viene de Wompi por el parámetro 'id'
-        const urlParams = new URLSearchParams(window.location.search);
-        const wompiId = urlParams.get('id');
-        console.log('wompiId:', wompiId);
-        if (wompiId) {
-            this.procesando = true;
+        this.procesando = true;
+        try {
+            let pedido = null;
+
             try {
-                const form = JSON.parse(localStorage.getItem('checkoutData')) || {};
-                const carrito = JSON.parse(localStorage.getItem('carritoData')) || [];
-                // Calcular subtotal y descuento directamente
-                const subtotal = carrito.reduce((acc, item) => acc + Number(item.price) * (item.qty || 1), 0);
-                let descuento = 0;
-                if (carrito.length === 2) descuento = 2000 * carrito.length;
-                if (carrito.length >= 3) descuento = 3000 * carrito.length;
-                const total = subtotal - descuento;
-                const pedido = {
-                    ...form,
-                    productos: carrito,
-                    subtotal,
-                    descuento,
-                    total,
-                    estado: "pagado",
-                    metodoPago: "Wompi",
-                    referencia: wompiId,
-                    fecha: Date.now(),
+                const almacenado = localStorage.getItem('ultimoPedido');
+                if (almacenado) {
+                    pedido = JSON.parse(almacenado);
+                }
+            } catch (error) {
+                console.error('Error al leer el último pedido:', error);
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const wompiTransactionId = urlParams.get('id');
+            const ultimoPedidoId = localStorage.getItem('ultimoPedidoId');
+
+            if (!pedido && ultimoPedidoId) {
+                pedido = await this.obtenerPedido({ orderId: ultimoPedidoId });
+            }
+
+            if (!pedido && wompiTransactionId) {
+                pedido = await this.obtenerPedido({ transactionId: wompiTransactionId });
+            }
+
+            if (pedido) {
+                this.pedido = {
+                    productos: Array.isArray(pedido.productos) ? pedido.productos : [],
+                    ...pedido,
                 };
-                // LOGS DE DEPURACIÓN
-                console.log('Form data:', form);
-                console.log('Carrito data:', carrito);
-                console.log('Pedido a guardar en thanks:', pedido);
-                // Guardar en Firebase y en localStorage
-                await this.$store.dispatch('crearPedidoWompi', pedido);
-                localStorage.setItem('ultimoPedido', JSON.stringify(pedido));
-                this.pedido = pedido;
-                // Limpiar datos después de crear el pedido
+                this.limpiarCacheLocal();
+            }
+        } catch (error) {
+            console.error('Error al obtener el pedido en thanks:', error);
+        } finally {
+            this.procesando = false;
+            this.$store.commit('vaciarCarrito');
+        }
+    },
+    methods: {
+        async obtenerPedido({ orderId, transactionId }) {
+            const params = new URLSearchParams();
+            if (orderId) params.append('orderId', orderId);
+            if (transactionId) params.append('transactionId', transactionId);
+            if (!params.toString()) {
+                return null;
+            }
+
+            try {
+                const response = await fetch(`/.netlify/functions/get-order?${params.toString()}`);
+                if (response.status === 404) {
+                    return null;
+                }
+                if (!response.ok) {
+                    const detalle = await response.text();
+                    throw new Error(detalle || 'Error desconocido obteniendo el pedido');
+                }
+                const data = await response.json();
+                return { ...data.order, id: data.id };
+            } catch (error) {
+                console.error('Error consultando el pedido:', error);
+                return null;
+            }
+        },
+        limpiarCacheLocal() {
+            try {
                 localStorage.removeItem('checkoutData');
                 localStorage.removeItem('carritoData');
-                this.$store.commit('vaciarCarrito');
-            } catch (e) {
-                console.error('Error al crear el pedido con Wompi en thanks:', e);
-            } finally {
-                this.procesando = false;
-            }
-        } else {
-            // Flujo contraentrega (o fallback)
-            try {
-                const pedido = localStorage.getItem('ultimoPedido');
-                if (pedido) {
-                    this.pedido = JSON.parse(pedido);
-                }
-            } catch (e) {
-                console.error('Error al leer el pedido de localStorage:', e);
-                this.pedido = {
-                    productos: [],
-                    total: 0,
-                    metodoPago: '',
-                    fecha: null
-                };
+            } catch (error) {
+                console.warn('No se pudo limpiar la cache local del checkout:', error);
             }
         }
     },

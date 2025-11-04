@@ -1,7 +1,78 @@
 import Vuex from "vuex";
 import { db, firebase } from "@/plugins/firebase";
 import "firebase/storage";
-import { addDoc, collection, Timestamp } from "firebase/firestore";
+
+const CUSTOMER_FIELDS = [
+  "nombres",
+  "apellidos",
+  "telefono",
+  "departamento",
+  "ciudad",
+  "direccion",
+];
+
+const buildCustomerPayload = (datos = {}) => {
+  const customer = {};
+
+  CUSTOMER_FIELDS.forEach((field) => {
+    if (datos[field]) {
+      customer[field] = String(datos[field]).trim();
+    }
+  });
+
+  if (!customer.nombres || !customer.apellidos || !customer.telefono) {
+    throw new Error("Datos del cliente incompletos");
+  }
+
+  if (!/^[0-9]{10}$/.test(customer.telefono)) {
+    throw new Error("Teléfono inválido");
+  }
+
+  return customer;
+};
+
+const buildCartItemsPayload = (items = []) => {
+  if (!Array.isArray(items) || !items.length) {
+    return [];
+  }
+
+  return items.map((item) => {
+    if (!item || !item.id) {
+      throw new Error("Producto sin identificador");
+    }
+
+    const qty = parseInt(item.qty, 10);
+    if (!Number.isInteger(qty) || qty <= 0 || qty > 99) {
+      throw new Error("Cantidad inválida");
+    }
+
+    const payload = {
+      id: String(item.id),
+      qty,
+    };
+
+    if (item.color) {
+      payload.color = String(item.color).trim();
+    }
+
+    return payload;
+  });
+};
+
+const storeLastOrder = (order) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    localStorage.setItem("ultimoPedido", JSON.stringify(order));
+    if (order?.id) {
+      localStorage.setItem("ultimoPedidoId", String(order.id));
+    }
+  } catch (error) {
+    console.warn("No se pudo guardar el último pedido:", error);
+  }
+};
 
 
 const createStore = () => {
@@ -75,123 +146,108 @@ const createStore = () => {
       },
     },
     actions: {
-      async crearPedidoContraEntrega({ state, commit, getters }, datosCliente) {
+      async crearPedidoContraEntrega({ state, commit }, datosCliente = {}) {
         try {
-          const pedido = {
-            ...datosCliente,
-            productos: state.cart.items,
-            subtotal: getters.cartSubtotal,
-            descuento: getters.cartDiscount,
-            total: getters.cartTotalWithDiscount,
-            estado: "pendiente",
-            metodoPago: "contraentrega",
-            fecha: Date.now()
-          };
+          const itemsOrigen = state.cart.items.length
+            ? state.cart.items
+            : datosCliente.productos || [];
 
-          const docRef = await db.collection("pedidos").add(pedido);
-          const pedidoId = docRef.id;
+          const cartItems = buildCartItemsPayload(itemsOrigen);
+          if (!cartItems.length) {
+            throw new Error("El carrito está vacío");
+          }
 
-          // Actualizar el documento con su propio ID
-          await db.collection("pedidos").doc(pedidoId).update({ id: pedidoId });
-          
-          // Vaciar el carrito después de crear el pedido
-          commit("vaciarCarrito");
+          const customer = buildCustomerPayload(datosCliente);
+          const reference =
+            String(datosCliente.referencia || datosCliente.referenciaPedido || "").trim() ||
+            `pedido-${Date.now()}`;
 
-          // Guardar el pedido en localStorage para la página de gracias
-          localStorage.setItem('ultimoPedido', JSON.stringify(pedido));
-
-          // Enviar notificación por correo
-          const productosTexto = pedido.productos.map(p => `- ${p.name} (${p.qty} unidades)`).join('\n');
-          const mensaje = `¡Nuevo Pedido #${pedidoId}!\n\nCliente: ${pedido.nombre}\nTeléfono: ${pedido.telefono}\nDirección: ${pedido.direccion}\n\nProductos:\n${productosTexto}\n\nSubtotal: $${pedido.subtotal}\nDescuento: $${pedido.descuento}\nTotal: $${pedido.total}`;
-          
-          // Llamar a la función de Netlify para enviar el correo
-          await fetch('/.netlify/functions/sendEmail', {
-            method: 'POST',
+          const response = await fetch("/.netlify/functions/create-order", {
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              to: 'mugnestoficial@gmail.com', // Tu correo electrónico
-              subject: `Nuevo Pedido #${pedidoId}`,
-              text: mensaje,
-              html: `
-                <h2>¡Nuevo Pedido #${pedidoId}!</h2>
-                <p><strong>Cliente:</strong> ${pedido.nombres} ${pedido.apellidos}</p>
-                <p><strong>Teléfono:</strong> ${pedido.telefono}</p>
-                <p><strong>Dirección:</strong> ${pedido.direccion}</p>
-                <h3>Productos:</h3>
-                <ul>
-                  ${pedido.productos.map(p => `<li>${p.name} (${p.qty} unidades)</li>`).join('')}
-                </ul>
-                <p><strong>Subtotal:</strong> $${pedido.subtotal}</p>
-                <p><strong>Descuento:</strong> $${pedido.descuento}</p>
-                <p><strong>Total:</strong> $${pedido.total}</p>
-              `
-            })
+              customer,
+              cartItems,
+              payment: {
+                method: "ContraEntrega",
+                reference,
+              },
+            }),
           });
 
+          const result = await response.json();
+          if (!response.ok) {
+            const message = result?.error || "Error al crear pedido contra entrega";
+            throw new Error(message);
+          }
+
+          commit("vaciarCarrito");
+          storeLastOrder({ ...result.order, id: result.id });
+
+          return result.id;
         } catch (error) {
           console.error("Error al crear pedido contra entrega:", error);
           throw error;
         }
       },
-      async crearPedidoWompi({ state, commit, getters }, datosCliente) {
+      async crearPedidoWompi({ state, commit }, datosCliente = {}) {
         try {
-          const pedido = {
-            ...datosCliente,
-            productos: state.cart.items.length ? state.cart.items : datosCliente.productos,
-            subtotal: datosCliente.subtotal || getters.cartSubtotal,
-            descuento: datosCliente.descuento || getters.cartDiscount,
-            total: datosCliente.total || getters.cartTotalWithDiscount,
-            estado: datosCliente.estado || "pagado",
-            metodoPago: "Wompi",
-            fecha: Date.now(),
-          };
-      
-          const docRef = await db.collection("pedidos").add(pedido);
-          const pedidoId = docRef.id;
-      
-          await db.collection("pedidos").doc(pedidoId).update({ id: pedidoId });
-          
-          // Vaciar el carrito después de crear el pedido solo si ya está pagado
-          if (pedido.estado === "pagado") {
-            commit("vaciarCarrito");
+          const itemsOrigen = state.cart.items.length
+            ? state.cart.items
+            : datosCliente.productos || [];
+          const cartItems = buildCartItemsPayload(itemsOrigen);
+          if (!cartItems.length) {
+            throw new Error("El carrito está vacío");
           }
 
-          // Guardar el pedido en localStorage para la página de gracias
-          localStorage.setItem('ultimoPedido', JSON.stringify({ ...pedido, id: pedidoId }));
+          const customer = buildCustomerPayload(datosCliente);
+          const transactionId =
+            String(
+              datosCliente.transactionId ||
+                datosCliente.id ||
+                (datosCliente.transaction && datosCliente.transaction.id) ||
+                ""
+            ).trim();
 
-          // Enviar notificación por correo
-          const productosTexto = pedido.productos.map(p => `- ${p.name} (${p.qty} unidades)`).join('\n');
-          const mensaje = `¡Nuevo Pedido #${pedidoId}!\n\nCliente: ${pedido.nombre}\nTeléfono: ${pedido.telefono}\nDirección: ${pedido.direccion}\n\nProductos:\n${productosTexto}\n\nSubtotal: $${pedido.subtotal}\nDescuento: $${pedido.descuento}\nTotal: $${pedido.total}`;
-          
-          // Llamar a la función de Netlify para enviar el correo
-          await fetch('/.netlify/functions/sendEmail', {
-            method: 'POST',
+          if (!transactionId) {
+            throw new Error("ID de transacción de Wompi requerido");
+          }
+
+          const reference =
+            String(
+              datosCliente.referencia ||
+                (datosCliente.transaction && datosCliente.transaction.reference) ||
+                ""
+            ).trim() || `pedido-${Date.now()}`;
+
+          const response = await fetch("/.netlify/functions/create-order", {
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              to: 'tu-email@ejemplo.com', // Tu correo electrónico
-              subject: `Nuevo Pedido #${pedidoId}`,
-              text: mensaje,
-              html: `
-                <h2>¡Nuevo Pedido #${pedidoId}!</h2>
-                <p><strong>Cliente:</strong> ${pedido.nombre}</p>
-                <p><strong>Teléfono:</strong> ${pedido.telefono}</p>
-                <p><strong>Dirección:</strong> ${pedido.direccion}</p>
-                <h3>Productos:</h3>
-                <ul>
-                  ${pedido.productos.map(p => `<li>${p.name} (${p.qty} unidades)</li>`).join('')}
-                </ul>
-                <p><strong>Subtotal:</strong> $${pedido.subtotal}</p>
-                <p><strong>Descuento:</strong> $${pedido.descuento}</p>
-                <p><strong>Total:</strong> $${pedido.total}</p>
-              `
-            })
+              customer,
+              cartItems,
+              payment: {
+                method: "Wompi",
+                transactionId,
+                reference,
+              },
+            }),
           });
-      
-          return pedidoId;
+
+          const result = await response.json();
+          if (!response.ok) {
+            const message = result?.error || "Error al crear pedido con Wompi";
+            throw new Error(message);
+          }
+
+          commit("vaciarCarrito");
+          storeLastOrder({ ...result.order, id: result.id });
+
+          return result.id;
         } catch (error) {
           console.error("Error al crear pedido con Wompi:", error);
           throw error;
@@ -253,8 +309,15 @@ const createStore = () => {
         try {
           const ref = db.collection("products").where("handle", "==", slug);
           const snapshot = await ref.get();
-          const product = snapshot.docs.shift().data();
-          commit("setProduct", product);
+          if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            commit("setProduct", {
+              id: doc.id,
+              ...doc.data(),
+            });
+          } else {
+            commit("setProduct", {});
+          }
         } catch (error) {
           console.error("Error fetching product:", error);
           commit("setProduct", {});

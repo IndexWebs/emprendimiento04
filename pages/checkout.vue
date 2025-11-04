@@ -264,33 +264,13 @@ export default {
             try {
                 const datosPedido = {
                     ...this.form,
-                    productos: this.items,
-                    subtotal: this.$store.getters.cartSubtotal,
-                    descuento: this.$store.getters.cartDiscount,
-                    total: this.$store.getters.cartTotalWithDiscount,
-                    estado: metodoPago === 'Wompi' ? 'pendiente' : 'pagado',
-                    metodoPago,
                     referencia: this.referencia,
-                    fecha: Date.now(),
                 };
 
-                if (metodoPago === "Wompi") {
-                    console.log('Creando pedido pendiente en Firebase con:', datosPedido);
-                    const pedidoId = await this.$store.dispatch("crearPedidoWompi", datosPedido);
-                    console.log('Pedido pendiente creado con ID:', pedidoId);
-                    localStorage.setItem('ultimoPedidoId', pedidoId);
-                    this.cargando = false;
-                    this.enviando = false;
-                    return;
-                } else {
-                    await this.$store.dispatch("crearPedidoContraEntrega", datosPedido);
-                    // Limpiar datos guardados después de un pago exitoso SOLO para contraentrega
-                    localStorage.removeItem('checkoutData');
-                    localStorage.removeItem('carritoData');
-                    // Vaciar el carrito
-                    await this.$store.dispatch("vaciarCarrito");
-                    this.$router.push("/thanks");
-                }
+                await this.$store.dispatch("crearPedidoContraEntrega", datosPedido);
+                localStorage.removeItem('checkoutData');
+                localStorage.removeItem('carritoData');
+                this.$router.push("/thanks");
             } catch (error) {
                 this.manejarError(error);
             } finally {
@@ -299,7 +279,7 @@ export default {
             }
         },
 
-        async onPagoAceptadoWompi() {
+        async onPagoAceptadoWompi(eventoPago) {
             if (!this.validarFormulario()) {
                 this.errores = ["Por favor completa todos los campos antes de pagar"];
                 return;
@@ -310,10 +290,15 @@ export default {
             this.enviando = true;
             this.cargando = true;
             try {
+                const transaccion = eventoPago?.detail?.transaction;
+                if (!transaccion?.id) {
+                    throw new Error("No se recibió confirmación válida de Wompi");
+                }
                 const datosPedido = {
                     ...this.form,
-                    metodoPago: "Wompi",
-                    referencia: this.referencia,
+                    transactionId: transaccion.id,
+                    transaction: transaccion,
+                    referencia: transaccion.reference || this.referencia,
                 };
                 await this.$store.dispatch("crearPedidoWompi", datosPedido);
                 localStorage.removeItem('checkoutData');

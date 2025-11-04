@@ -23,7 +23,8 @@ export default {
       firma: null,
       expirationDate: null,
       publicKey: "pub_prod_ljfcuLuIeXJEyeuZYLzrYj0414c65Itv",
-      redirectUrl: `${window.location.origin}/thanks`,
+      redirectUrl: typeof window !== "undefined" ? `${window.location.origin}/thanks` : "",
+      paymentAcceptedHandler: null,
     };
   },
 
@@ -41,9 +42,10 @@ export default {
     } catch (e) {
       console.error('Error guardando datos en localStorage antes de Wompi:', e);
     }
-    window.addEventListener("payment_accepted", () => {
-      this.$emit("pago-aceptado")
-    })
+    this.paymentAcceptedHandler = (event) => {
+      this.$emit("pago-aceptado", event);
+    };
+    window.addEventListener("payment_accepted", this.paymentAcceptedHandler);
     const now = new Date();
     const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
     const expirationISO = oneHourLater.toISOString(); // Wompi requiere formato ISO completo
@@ -65,6 +67,11 @@ export default {
       this.firma = data.signature;
     } catch (err) {
       console.error("Error generando firma:", err);
+    }
+  },
+  beforeDestroy() {
+    if (this.paymentAcceptedHandler) {
+      window.removeEventListener("payment_accepted", this.paymentAcceptedHandler);
     }
   },
 };
