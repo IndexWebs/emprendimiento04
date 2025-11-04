@@ -1,5 +1,5 @@
 <template>
-  <form v-if="firma && expirationDate && referencia && monto">
+  <form v-if="publicKey && firma && expirationDate && referencia && monto">
     <script class="w-full" src="https://checkout.wompi.co/widget.js" data-render="button" v-bind="{
       'data-public-key': publicKey,
       'data-currency': 'COP',
@@ -22,13 +22,24 @@ export default {
     return {
       firma: null,
       expirationDate: null,
-      publicKey: "pub_prod_ljfcuLuIeXJEyeuZYLzrYj0414c65Itv",
+      publicKey: "",
       redirectUrl: typeof window !== "undefined" ? `${window.location.origin}/thanks` : "",
       paymentAcceptedHandler: null,
     };
   },
 
+  created() {
+    this.publicKey = this.$config?.wompiPublicKey || "";
+    if (!this.publicKey) {
+      // Sin clave pública no se puede renderizar el widget
+      console.warn("[Checkout] Falta WOMPI_PUBLIC_KEY en la configuración.");
+    }
+  },
+
   async mounted() {
+    if (!this.publicKey) {
+      return;
+    }
     // Guardar datos en localStorage justo antes de mostrar el widget de Wompi
     try {
       const form = this.$root.$children[0]?.form;

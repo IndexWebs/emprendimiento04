@@ -1,5 +1,6 @@
 const firebase = require('firebase/app');
 require('firebase/firestore');
+const nodemailer = require('nodemailer');
 
 const WOMPI_TRANSACTIONS_URL =
   process.env.WOMPI_TRANSACTIONS_URL || 'https://production.wompi.co/v1/transactions';
@@ -18,6 +19,19 @@ if (!firebase.apps.length) {
 }
 
 const db = firebase.firestore();
+
+const formatCurrency = (value = 0) => {
+  try {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+    }).format(Number(value) || 0);
+  } catch (error) {
+    const number = Math.round(Number(value) || 0);
+    return `COP ${number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
+  }
+};
 
 const sanitizeString = (value, max = 200) => {
   if (typeof value !== 'string') return '';
@@ -153,6 +167,91 @@ const verifyWompiPayment = async ({ transactionId, expectedTotal, referenceHint 
   };
 };
 
+const sendOrderEmail = async ({ orderId, order }) => {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
+  const to = process.env.ORDER_NOTIFICATION_EMAIL || user;
+
+  if (!user || !pass) {
+    console.warn('[create-order] EMAIL_USER or EMAIL_PASS missing. Skipping email notification.');
+    return { skipped: true, reason: 'missing_credentials' };
+  }
+
+  if (!to) {
+    console.warn('[create-order] ORDER_NOTIFICATION_EMAIL missing. Skipping email notification.');
+    return { skipped: true, reason: 'missing_recipient' };
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user,
+        pass,
+      },
+    });
+
+    const itemsHtml = (order.productos || [])
+      .map(
+        (producto) =>
+          `<li>${sanitizeString(producto.name || '', 150)} (${producto.qty} unidades) - ${formatCurrency(
+            Number(producto.price) * Number(producto.qty || 1)
+          )}</li>`
+      )
+      .join('');
+
+    const itemsText = (order.productos || [])
+      .map((producto) => `- ${sanitizeString(producto.name || '', 150)} (${producto.qty} unidades)`)
+      .join('\n');
+
+    const subject = `Nuevo Pedido #${orderId}`;
+    const text = [
+      `¡Nuevo Pedido #${orderId}!`,
+      '',
+      `Cliente: ${order.nombres} ${order.apellidos}`,
+      `Teléfono: ${order.telefono}`,
+      `Dirección: ${order.direccion}, ${order.ciudad} - ${order.departamento}`,
+      '',
+      'Productos:',
+      itemsText,
+      '',
+      `Subtotal: ${formatCurrency(order.subtotal)}`,
+      `Descuento: ${formatCurrency(order.descuento)}`,
+      `Total: ${formatCurrency(order.total)}`,
+      '',
+      `Método de pago: ${order.metodoPago}`,
+    ].join('\n');
+
+    const html = `
+      <h2>¡Nuevo Pedido #${orderId}!</h2>
+      <p><strong>Cliente:</strong> ${order.nombres} ${order.apellidos}</p>
+      <p><strong>Teléfono:</strong> ${order.telefono}</p>
+      <p><strong>Dirección:</strong> ${order.direccion}, ${order.ciudad} - ${order.departamento}</p>
+      <p><strong>Método de pago:</strong> ${order.metodoPago}</p>
+      <h3>Productos:</h3>
+      <ul>${itemsHtml}</ul>
+      <p><strong>Subtotal:</strong> ${formatCurrency(order.subtotal)}</p>
+      <p><strong>Descuento:</strong> ${formatCurrency(order.descuento)}</p>
+      <p><strong>Total:</strong> ${formatCurrency(order.total)}</p>
+    `;
+
+    await transporter.sendMail({
+      from: user,
+      to,
+      subject,
+      text,
+      html,
+    });
+
+    return { sent: true };
+  } catch (error) {
+    console.error('[create-order] Error sending email notification:', error);
+    return { sent: false, error: error.message };
+  }
+};
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
@@ -223,9 +322,11 @@ exports.handler = async (event) => {
     const docRef = await db.collection('pedidos').add(order);
     await docRef.update({ id: docRef.id });
 
+    const emailResult = await sendOrderEmail({ orderId: docRef.id, order });
+
     return {
       statusCode: 201,
-      body: JSON.stringify({ id: docRef.id, order }),
+      body: JSON.stringify({ id: docRef.id, order, email: emailResult }),
     };
   } catch (error) {
     console.error('[create-order] Error:', error);

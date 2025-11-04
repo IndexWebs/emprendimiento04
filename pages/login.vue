@@ -11,6 +11,9 @@
           <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white">
             Iniciar sesión en tu cuenta
           </h1>
+          <p v-if="errorMessage" class="text-sm text-red-500 bg-red-50 border border-red-200 rounded p-2">
+            {{ errorMessage }}
+          </p>
           <form class="space-y-4 md:space-y-6" action="#">
             <div>
               <label for="email" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Tu correo electrónico</label>
@@ -40,8 +43,9 @@
                 class="text-sm font-medium text-primary-600 hover:underline dark:text-primary-500 text-blue-500">¿Olvidaste tu contraseña?</a>
             </div>
             <button @click="onLogin" type="submit"
-              class="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center bg-blue-700">
-              Iniciar sesión
+              class="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="loading">
+              {{ loading ? 'Ingresando...' : 'Iniciar sesión' }}
             </button>
             <p class="text-sm font-light text-gray-500 dark:text-gray-400">
               No tienes una cuenta aún?
@@ -63,20 +67,39 @@ export default {
     return {
       email: "",
       password: "",
+      loading: false,
+      errorMessage: "",
     };
+  },
+  mounted() {
+    const error = this.$route.query.error;
+    if (error === 'not_authorized') {
+      this.errorMessage = 'Tu cuenta no tiene permisos para acceder al panel de administración.';
+    } else if (error === 'session') {
+      this.errorMessage = 'Tu sesión expiró. Ingresa nuevamente.';
+    }
   },
   methods: {
   async onLogin() {
     try {
+      this.errorMessage = "";
+      this.loading = true;
       const auth = firebase.auth();
       const userCredential = await auth.signInWithEmailAndPassword(this.email, this.password);
-      console.log("Usuario autenticado:", userCredential.user);
-      
-      // Asegúrate de que la ruta exista
+      const tokenResult = await userCredential.user.getIdTokenResult(true);
+
+      if (!tokenResult.claims || !tokenResult.claims.admin) {
+        await auth.signOut();
+        this.errorMessage = "Tu cuenta no tiene permisos para acceder al panel de administración.";
+        return;
+      }
+
       this.$router.push({ path: '/admin' });
     } catch (error) {
       console.error("Error al iniciar sesión:", error.message);
-      alert("Error al iniciar sesión: " + error.message);
+      this.errorMessage = error.message || "No se pudo iniciar sesión.";
+    } finally {
+      this.loading = false;
     }
   }
 }

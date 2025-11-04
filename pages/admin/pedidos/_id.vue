@@ -36,10 +36,16 @@ export default {
   },
   methods: {
     async guardarEstado() {
-      await db.collection('pedidos').doc(this.pedido.id).update({
-        estado: this.pedido.estado
-      })
-      alert('Estado actualizado')
+      try {
+        await this.$store.dispatch('actualizarEstadoPedido', {
+          id: this.pedido.id,
+          estado: this.pedido.estado
+        });
+        alert('Estado actualizado');
+      } catch (error) {
+        console.error('Error al actualizar el pedido:', error);
+        alert('No se pudo actualizar el estado del pedido. Revisa la consola para más detalles.');
+      }
     }
   }
 }

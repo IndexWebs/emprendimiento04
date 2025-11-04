@@ -13,6 +13,7 @@
     "@nuxtjs/axios": "^5.13.6",
     "core-js": "^3.25.3",
     "firebase": "8.9",
+    "firebase-admin": "^11.11.1",
     "nodemailer": "^7.0.3",
     "nuxt": "^2.15.8",
     "vue": "^2.7.10",

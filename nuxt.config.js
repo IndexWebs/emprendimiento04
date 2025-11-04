@@ -39,6 +39,10 @@ export default {
   // Modules: https://go.nuxtjs.dev/config-modules
   modules: ["@nuxtjs/tailwindcss", "@nuxtjs/axios"],
 
+  publicRuntimeConfig: {
+    wompiPublicKey: process.env.WOMPI_PUBLIC_KEY || "",
+  },
+
   // Build Configuration: https://go.nuxtjs.dev/config-build
   build: {},
 };

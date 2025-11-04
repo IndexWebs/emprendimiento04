@@ -483,8 +483,25 @@ const createStore = () => {
 
       async actualizarEstadoPedido({ }, { id, estado }) {
         try {
-          const pedidoRef = db.collection("pedidos").doc(id);
-          await pedidoRef.update({ estado });
+          const currentUser = firebase.auth().currentUser;
+          if (!currentUser) {
+            throw new Error("No hay sesión activa");
+          }
+
+          const token = await currentUser.getIdToken();
+          const response = await fetch('/.netlify/functions/admin-update-order', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ id, estado }),
+          });
+
+          if (!response.ok) {
+            const detalle = await response.text();
+            throw new Error(detalle || 'No se pudo actualizar el pedido');
+          }
         } catch (error) {
           console.error("Error al actualizar el estado del pedido:", error);
           throw error;
