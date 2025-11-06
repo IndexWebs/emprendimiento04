@@ -82,6 +82,7 @@ const createStore = () => {
       categories: [],
       filteredProducts: [],
       product: {},
+      orders: [],
       cart: {
         items: [],
       },
@@ -98,6 +99,9 @@ const createStore = () => {
       },
       setProduct(state, product) {
         state.product = product;
+      },
+      setOrders(state, orders) {
+        state.orders = orders;
       },
       addItemToCart(state, item) {
         const newItem = {
@@ -305,6 +309,54 @@ const createStore = () => {
           console.error("Error fetching categories:", error);
         }
       },
+      async addCategory({ dispatch }, name) {
+        try {
+          const trimmed = String(name || "").trim();
+          if (!trimmed) {
+            throw new Error("El nombre de la categoría es obligatorio");
+          }
+          const handle = trimmed.toLowerCase().replace(/\s+/g, "-");
+          const docRef = await db.collection("categories").add({
+            name: trimmed,
+            handle,
+            createdAt: Date.now(),
+          });
+          await docRef.update({ id: docRef.id });
+          await dispatch("fetchCategories");
+        } catch (error) {
+          console.error("Error al crear la categoría:", error);
+          throw error;
+        }
+      },
+      async updateCategory({ dispatch }, { id, name }) {
+        try {
+          if (!id) throw new Error("Falta el ID de la categoría");
+          const trimmed = String(name || "").trim();
+          if (!trimmed) {
+            throw new Error("El nombre de la categoría es obligatorio");
+          }
+          const handle = trimmed.toLowerCase().replace(/\s+/g, "-");
+          await db.collection("categories").doc(id).update({
+            name: trimmed,
+            handle,
+            updatedAt: Date.now(),
+          });
+          await dispatch("fetchCategories");
+        } catch (error) {
+          console.error("Error al actualizar la categoría:", error);
+          throw error;
+        }
+      },
+      async deleteCategory({ dispatch }, id) {
+        try {
+          if (!id) throw new Error("Falta el ID de la categoría");
+          await db.collection("categories").doc(id).delete();
+          await dispatch("fetchCategories");
+        } catch (error) {
+          console.error("Error al eliminar la categoría:", error);
+          throw error;
+        }
+      },
       async fetchProductBySlug({ commit }, slug) {
         try {
           const ref = db.collection("products").where("handle", "==", slug);
@@ -477,6 +529,22 @@ const createStore = () => {
           await dispatch("fetchProducts");
         } catch (error) {
           console.error("Error al eliminar el producto:", error);
+          throw error;
+        }
+      },
+      async fetchOrders({ commit }) {
+        try {
+          const snapshot = await db
+            .collection("pedidos")
+            .orderBy("fecha", "desc")
+            .get();
+          const orders = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          commit("setOrders", orders);
+        } catch (error) {
+          console.error("Error al obtener pedidos:", error);
           throw error;
         }
       },

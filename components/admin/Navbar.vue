@@ -21,6 +21,18 @@
           Productos
         </nuxt-link>
         <nuxt-link
+          to="/admin/categories"
+          class="flex items-center gap-x-1 font-semibold leading-6 text-gray-900"
+        >
+          Categorías
+        </nuxt-link>
+        <nuxt-link
+          to="/admin/pedidos"
+          class="flex items-center gap-x-1 font-semibold leading-6 text-gray-900"
+        >
+          Pedidos
+        </nuxt-link>
+        <nuxt-link
           to="/admin/create"
           class="font-semibold leading-6 text-gray-900"
           >Crear</nuxt-link
@@ -85,8 +97,9 @@
         <div
           class="flex flex-col space-y-5 text-lg font-semibold leading-6 text-gray-900"
         >
-          <nuxt-link to="/admin"> Dashboard </nuxt-link>
           <nuxt-link to="/admin"> Productos </nuxt-link>
+          <nuxt-link to="/admin/categories">Categorías</nuxt-link>
+          <nuxt-link to="/admin/pedidos">Pedidos</nuxt-link>
           <nuxt-link to="/admin/create">Crear</nuxt-link>
         </div>
       </div>
