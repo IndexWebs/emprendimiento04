@@ -1,7 +1,8 @@
 <template>
-  <section v-if="showCart" class="fixed flex justify-end w-full min-h-screen bg-black z-10 top-0 bg-opacity-40" @click.self="close">
-    <div class="flex h-20 flex-col overflow-y-scroll bg-white shadow-xl min-h-screen animate-fadeIn">
-      <div class="flex-1 px-4 py-6 sm:px-6 overflow-scroll h-20">
+  <transition name="cart-overlay">
+    <section v-if="showCart" class="cart-overlay" @click.self="close">
+      <div class="cart-panel flex flex-col overflow-y-auto" @click.stop>
+        <div class="flex-1 px-4 py-6 sm:px-6 overflow-scroll h-20">
         <div class="flex items-start justify-between">
           <h4 id="slide-over-title text-primary">Tu pedido</h4>
           <div class="ml-3 flex h-7 items-center">
@@ -47,7 +48,7 @@
         </div>
       </div>
 
-      <div class="border-t border-gray-200 px-4 py-6 sm:px-6">
+        <div class="border-t border-gray-200 px-4 py-6 sm:px-6">
         <div class="flex justify-between text-base font-medium text-gray-900">
           <p>Subtotal</p>
           <p>${{ subtotalFormateado }}</p>
@@ -77,8 +78,9 @@
           </p>
         </div>
       </div>
-    </div>
-  </section>
+      </div>
+    </section>
+  </transition>
 </template>
 
 <script>
@@ -134,3 +136,66 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.cart-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 80;
+}
+
+.cart-panel {
+  background: #fff;
+  width: min(420px, 100%);
+  max-width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -12px 0 30px rgba(15, 23, 42, 0.2);
+}
+
+.cart-overlay-enter-active,
+.cart-overlay-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.cart-overlay-enter,
+.cart-overlay-leave-to {
+  opacity: 0;
+}
+
+.cart-overlay-enter-active .cart-panel {
+  animation: cart-slide-in 0.25s ease forwards;
+}
+
+.cart-overlay-leave-active .cart-panel {
+  animation: cart-slide-out 0.25s ease forwards;
+}
+
+@keyframes cart-slide-in {
+  from {
+    transform: translateX(20%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes cart-slide-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(20%);
+  }
+}
+
+@media (max-width: 640px) {
+  .cart-panel {
+    width: 100%;
+  }
+}
+</style>

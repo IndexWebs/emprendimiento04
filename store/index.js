@@ -472,27 +472,26 @@ const createStore = () => {
       async addProduct({ commit }, product) {
         try {
           const storageRef = firebase.storage().ref();
+          const docRef = db.collection("products").doc();
+          const productId = docRef.id;
           const imageUrls = [];
 
-          // Subir todas las imágenes seleccionadas
-          for (const image of product.images) {
-            const imageRef = storageRef.child(`products/${product.name}/${image.name}`);
+          for (const image of product.images || []) {
+            const safeName = image.name ? image.name.replace(/\s+/g, "-") : `imagen-${Date.now()}`;
+            const imageRef = storageRef.child(`products/${productId}/${Date.now()}-${safeName}`);
             const snapshot = await imageRef.put(image);
             const downloadURL = await snapshot.ref.getDownloadURL();
             imageUrls.push(downloadURL);
           }
 
-          // Agregar las URLs de las imágenes al producto
-          product.images = imageUrls;
+          const productPayload = {
+            ...product,
+            id: productId,
+            images: imageUrls,
+          };
 
-          // Crear el documento en Firestore y obtener el ID
-          const docRef = await db.collection("products").add(product);
-          const productId = docRef.id;
+          await docRef.set(productPayload);
 
-          // Actualizar el producto en Firestore con su ID
-          await db.collection("products").doc(productId).update({ id: productId });
-
-          // Refrescar productos después de agregar uno nuevo
           const response = await db.collection("products").get();
           const products = response.docs.map((doc) => ({
             id: doc.id,
@@ -501,6 +500,7 @@ const createStore = () => {
           commit("setProducts", products);
         } catch (error) {
           console.error("Error adding product:", error);
+          throw error;
         }
       },
 
@@ -514,16 +514,26 @@ const createStore = () => {
           }
 
           const data = doc.data();
-          const imageUrl = data.image;
+          const imageUrls = Array.isArray(data.images)
+            ? data.images
+            : data.image
+              ? [data.image]
+              : [];
 
           await ref.delete();
           console.log("Documento eliminado correctamente");
 
-          if (imageUrl) {
-            const storageRef = firebase.storage().refFromURL(imageUrl);
-            await storageRef.delete();
-            console.log("Imagen eliminada de Firebase Storage.");
-          }
+          await Promise.all(
+            imageUrls.map(async (url) => {
+              try {
+                const storageRef = firebase.storage().refFromURL(url);
+                await storageRef.delete();
+                console.log("Imagen eliminada de Firebase Storage.");
+              } catch (error) {
+                console.warn("No se pudo eliminar la imagen:", url, error);
+              }
+            })
+          );
 
           // Refresca los productos después de eliminar uno
           await dispatch("fetchProducts");

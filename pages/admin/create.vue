@@ -33,7 +33,7 @@
       </div>
       <div class="grid md:grid-cols-2 md:gap-6">
         <div class="relative z-0 w-full mb-6 group">
-          <input type="text" v-model="formattedPrice" @input="updatePrice" @keypress="allowOnlyNumbers"
+          <input type="text" v-model="formattedPrice" @keypress="allowOnlyNumbers"
             class="block py-2.5 px-0 w-full text-sm text-gray-900 bg-transparent border-0 border-b-2 border-gray-300 appearance-none focus:outline-none focus:ring-0 focus:border-blue-600 peer"
             placeholder=" " required />
           <label
@@ -96,7 +96,7 @@ export default {
     };
   },
   computed: {
-    ...mapState(["categories", "talles"]),
+    ...mapState(["categories"]),
     slug() {
       if (this.product.name) {
         this.product.handle = this.product.name.replace(/ /g, "-");
@@ -105,40 +105,42 @@ export default {
         return "";
       }
     },
-    formattedPrice() {
-      if (!this.product.price) return '';
-      return formatPrice(Number(this.product.price));
+    formattedPrice: {
+      get() {
+        if (!this.product.price) return '';
+        return formatPrice(Number(this.product.price));
+      },
+      set(value) {
+        const rawValue = String(value || '').replace(/\D/g, '');
+        this.product.price = rawValue ? Number(rawValue) : 0;
+      }
     },
   },
   created() {
     this.fetchCategories();
-    this.fetchTalles();
   },
   methods: {
-    ...mapActions(["fetchCategories", "addProduct", "fetchTalles"]),
-    updatePrice(event) {
-      const rawValue = event.target.value.replace(/\D/g, '');
-      this.product.price = rawValue ? Number(rawValue) : 0;
-    },
+    ...mapActions(["fetchCategories", "addProduct"]),
     allowOnlyNumbers(event) {
       const charCode = event.key.charCodeAt(0);
       if (charCode < 48 || charCode > 57) {
         event.preventDefault();
-      }},
-      onFileChange(event) {
-        this.product.images = Array.from(event.target.files);
-      },
-    async onSubmitButton() {
-        try {
-          this.isLoading = true;
-          await this.addProduct(this.product);
-        } catch (error) {
-          console.error("Error al cargar el producto:", error);
-        } finally {
-          this.isLoading = false;
-          this.$router.back();
-        }
       }
     },
-  };
+    onFileChange(event) {
+      this.product.images = Array.from(event.target.files);
+    },
+    async onSubmitButton() {
+      try {
+        this.isLoading = true;
+        await this.addProduct(this.product);
+      } catch (error) {
+        console.error("Error al cargar el producto:", error);
+      } finally {
+        this.isLoading = false;
+        this.$router.back();
+      }
+    }
+  }
+};
 </script>

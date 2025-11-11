@@ -6,12 +6,12 @@ const WOMPI_TRANSACTIONS_URL =
   process.env.WOMPI_TRANSACTIONS_URL || 'https://production.wompi.co/v1/transactions';
 
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDLQV1hup5UJw7pYbqFu6eVUQxs6wHn0w8',
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || 'emprendimiento-03-52bab.firebaseapp.com',
-  projectId: process.env.FIREBASE_PROJECT_ID || 'emprendimiento-03-52bab',
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'emprendimiento-03-52bab.firebasestorage.app',
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '183837083318',
-  appId: process.env.FIREBASE_APP_ID || '1:183837083318:web:e75800407f74a5305c8817',
+  appId: process.env.FIREBASE_APP_ID,
 };
 
 if (!firebase.apps.length) {

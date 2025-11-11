@@ -129,16 +129,6 @@
           <!-- Botón de compra directa -->
           <PrimaryButton class="w-full" @click="comprarAhora" text="Comprar ahora"/>
 
-          <!-- Share -->
-          <div class="mt-4 text-sm text-gray-700">
-            <span class="font-medium">Compartir:</span>
-            <div class="flex gap-3 mt-1">
-              <i class="fab fa-facebook text-lg"></i>
-              <i class="fab fa-linkedin text-lg"></i>
-              <i class="far fa-heart text-lg"></i>
-            </div>
-          </div>
-
           <!-- We Accept -->
           <div class="mt-6">
             <p class="text-sm text-gray-700 font-medium mb-1">Aceptamos</p>
@@ -165,13 +155,7 @@
 
             <img src="@/assets/images/metodos/credito.svg" class="inline w-5" alt="Credito">
           </div>
-
-          <!-- Returns -->
-          <div class="mt-4 bg-gray-100 p-4 rounded flex justify-between items-center">
-            <p class="text-sm font-medium">Devoluciones gratis en 30 días</p>
-            <a href="#" class="text-sm text-blue-600 underline">Leer más</a>
-          </div>
-
+          
           <!-- Detalles -->
           <div class="mt-6" v-if="product.detalles && product.detalles.length">
             <h3 class="text-sm font-semibold text-gray-800 mb-2">Detalles</h3>

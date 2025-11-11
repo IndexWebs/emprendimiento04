@@ -4,13 +4,13 @@ import 'firebase/firebase-auth'
 
 if (!firebase.apps.length) {
   const firebaseConfig = {
-    apiKey: "AIzaSyDLQV1hup5UJw7pYbqFu6eVUQxs6wHn0w8",
-    authDomain: "emprendimiento-03-52bab.firebaseapp.com",
-    projectId: "emprendimiento-03-52bab",
-    storageBucket: "emprendimiento-03-52bab.firebasestorage.app",
-    messagingSenderId: "183837083318",
-    appId: "1:183837083318:web:e75800407f74a5305c8817",
-    measurementId: "G-VCWSH1VYZT"
+    apiKey: "AIzaSyD9Wc3UBZb4YPZxLq52QiAEipk7en4v8Ns",
+    authDomain: "atscanner-1c6bc.firebaseapp.com",
+    projectId: "atscanner-1c6bc",
+    storageBucket: "atscanner-1c6bc.firebasestorage.app",
+    messagingSenderId: "860316812760",
+    appId: "1:860316812760:web:908920c0b911aacb881ead",
+    measurementId: "G-N4FS19K1E8"
   };
   // Initialize Firebase
   firebase.initializeApp(firebaseConfig)
