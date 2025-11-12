@@ -214,17 +214,19 @@ export default {
         }
     },
     created() {
-        // Recuperar datos guardados si existen
-        const datosGuardados = localStorage.getItem('checkoutData');
-        if (datosGuardados) {
-            this.form = JSON.parse(datosGuardados);
+        if (process.client) {
+            const datosGuardados = localStorage.getItem('checkoutData');
+            if (datosGuardados) {
+                this.form = JSON.parse(datosGuardados);
+            }
         }
     },
     watch: {
         form: {
             handler(newValue) {
-                // Guardar datos en localStorage
-                localStorage.setItem('checkoutData', JSON.stringify(newValue));
+                if (process.client) {
+                    localStorage.setItem('checkoutData', JSON.stringify(newValue));
+                }
             },
             deep: true
         }
@@ -254,9 +256,10 @@ export default {
                 return;
             }
 
-            // Guardar datos antes de iniciar cualquier pago
-            localStorage.setItem('checkoutData', JSON.stringify(this.form));
-            localStorage.setItem('carritoData', JSON.stringify(this.items.map(item => ({ ...item }))));
+            if (process.client) {
+                localStorage.setItem('checkoutData', JSON.stringify(this.form));
+                localStorage.setItem('carritoData', JSON.stringify(this.items.map(item => ({ ...item }))));
+            }
 
             this.enviando = true;
             this.cargando = true;
@@ -268,8 +271,10 @@ export default {
                 };
 
                 await this.$store.dispatch("crearPedidoContraEntrega", datosPedido);
-                localStorage.removeItem('checkoutData');
-                localStorage.removeItem('carritoData');
+                if (process.client) {
+                    localStorage.removeItem('checkoutData');
+                    localStorage.removeItem('carritoData');
+                }
                 this.$router.push("/thanks");
             } catch (error) {
                 this.manejarError(error);
@@ -285,8 +290,10 @@ export default {
                 return;
             }
             // Guardar datos antes de crear el pedido
-            localStorage.setItem('checkoutData', JSON.stringify(this.form));
-            localStorage.setItem('carritoData', JSON.stringify(this.items.map(item => ({ ...item }))));
+            if (process.client) {
+                localStorage.setItem('checkoutData', JSON.stringify(this.form));
+                localStorage.setItem('carritoData', JSON.stringify(this.items.map(item => ({ ...item }))));
+            }
             this.enviando = true;
             this.cargando = true;
             try {
@@ -301,8 +308,10 @@ export default {
                     referencia: transaccion.reference || this.referencia,
                 };
                 await this.$store.dispatch("crearPedidoWompi", datosPedido);
-                localStorage.removeItem('checkoutData');
-                localStorage.removeItem('carritoData');
+                if (process.client) {
+                    localStorage.removeItem('checkoutData');
+                    localStorage.removeItem('carritoData');
+                }
                 this.$router.push("/thanks");
             } catch (error) {
                 this.manejarError(error);
